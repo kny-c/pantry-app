@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <h1>Your Recipes</h1>
+
+  <form action="/recipes/add" method="POST" class="recipe-form">
+    <input type="text" name="title" placeholder="Recipe title" required>
+    <textarea name="instructions" placeholder="Instructions" rows="3" required></textarea>
+    <textarea
+      name="ingredients"
+      placeholder="One ingredient per line, like:&#10;flour, 2, cups&#10;egg, 3, count"
+      rows="4"
+      required
+    ></textarea>
+    <button type="submit">Add recipe</button>
+  </form>
+
+  <div class="recipe-list">
+    {% for recipe in recipes %}
+      <div class="recipe-card">
+        <h3>{{ recipe.title }}</h3>
+        {% if recipe.missing|length == 0 %}
+          <span class="badge badge-ready">Ready to cook</span>
+        {% else %}
+          <span class="badge badge-missing">Missing ingredients</span>
+          <span class="missing-ingredients">Missing ingredients: {{ recipe.missing | join(", ") }}</span>
+        {% endif %}
+        <p class="instructions">{{ recipe.instructions }}</p>
+
+        <p class="ingredient-heading">Ingredients:</p>
+        <ul>
+          {% for ingredient in recipe.ingredients %}
+            <li>{{ ingredient.quantity_needed }} {{ ingredient.unit }} {{ ingredient.ingredient_name }}</li>
+          {% endfor %}
+        </ul>
+
+        <form action="/recipes/delete/{{ recipe.id }}" method="POST">
+          <button type="submit" class="delete-btn">Delete</button>
+        </form>
+      </div>
+    {% endfor %}
+  </div>
+{% endblock %}

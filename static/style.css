@@ -1,0 +1,249 @@
+body {
+  margin: 0;
+  font-family: -apple-system, sans-serif;
+  background-color: #FAFAF8;
+  color: #2B2B26;
+}
+
+.navbar {
+  background-color: #8A9A7E;
+  padding: 16px 24px;
+}
+
+.logo {
+  color: white;
+  font-weight: bold;
+  font-size: 18px;
+}
+
+.nav-user {
+  float: right;
+  color: white;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+
+.logout-form button {
+  background: none;
+  border: 1px solid white;
+  color: white;
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.container {
+  padding: 32px 24px;
+}
+
+.card-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.card {
+  background-color: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  padding: 16px 20px 48px 20px;
+  width: 180px;
+  position: relative;
+}
+
+.card h3 {
+  margin: 0 0 8px 0;
+}
+
+.card p {
+  margin: 4px 0;
+  color: #555;
+}
+
+.expires {
+  color: #D98E4A;
+  font-size: 14px;
+}
+
+.add-form {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.add-form input {
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+}
+
+.add-form button {
+  background-color: #7e916e;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+
+.delete-btn {
+  background-color: transparent;
+  color: #b04a4a;
+  border: 1px solid #b04a4a;
+  border-radius: 8px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 13px;
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+}
+
+details summary {
+  cursor: pointer;
+  color: #7e916e;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.edit-form input {
+  padding: 6px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.edit-form button {
+  background-color: #7e916e;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 280px;
+}
+
+.auth-form input {
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+}
+
+.auth-form button {
+  background-color: #7e916e;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 10px;
+  cursor: pointer;
+}
+
+.error {
+  color: #b04a4a;
+  background-color: #fbeceb;
+  padding: 8px 12px;
+  border-radius: 8px;
+  max-width: 280px;
+}
+
+.recipe-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 400px;
+  margin-bottom: 24px;
+}
+
+.recipe-form input,
+.recipe-form textarea {
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font-family: inherit;
+}
+
+.recipe-form button {
+  background-color: #7e916e;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 10px;
+  cursor: pointer;
+}
+
+.recipe-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.recipe-card {
+  background-color: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  padding: 16px 20px;
+  width: 260px;
+}
+
+.recipe-card .instructions {
+  color: #555;
+  font-size: 14px;
+}
+
+.ingredient-heading {
+  font-weight: bold;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.recipe-card ul {
+  margin: 0 0 12px 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: #555;
+}
+
+.badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.badge-ready {
+  background-color: #e3ecd9;
+  color: #4f6b3f;
+}
+
+.badge-missing {
+  background-color: #fbeceb;
+  color: #b04a4a;
+}
+
+.missing-ingredients {
+  display: block;
+  font-size: 12px;
+  color: #b04a4a;
+  margin-bottom: 8px;
+}

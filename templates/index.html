@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <h1>Your pantry</h1>
+
+  <form action="/add" method="POST" class="add-form">
+    <input type="text" name="name" placeholder="Item name" required>
+    <input type="number" name="quantity" placeholder="Quantity" step="any" required>
+    <input type="text" name="unit" placeholder="Unit (g, count, cups...)" required>
+    <input type="date" name="expiration_date">
+    <button type="submit">Add item</button>
+  </form>
+
+  <div class="card-grid">
+    {% for item in items %}
+      <div class="card">
+        <h3>{{ item.name }}</h3>
+        <p>{{ item.quantity }} {{ item.unit }}</p>
+        <p class="expires">Use by {{ item.expiration_date }}</p>
+
+        <details>
+          <summary>Edit</summary>
+          <form action="/edit/{{ item.id }}" method="POST" class="edit-form">
+            <input type="text" name="name" value="{{ item.name }}" required>
+            <input type="number" name="quantity" value="{{ item.quantity }}" step="any" required>
+            <input type="text" name="unit" value="{{ item.unit }}" required>
+            <input type="date" name="expiration_date" value="{{ item.expiration_date }}">
+            <button type="submit">Save</button>
+          </form>
+        </details>
+
+        <form action="/delete/{{ item.id }}" method="POST">
+          <button type="submit" class="delete-btn">Delete</button>
+        </form>
+      </div>
+    {% endfor %}
+  </div>
+{% endblock %}
