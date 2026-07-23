@@ -83,6 +83,38 @@ def check_recipe_availability(recipe_ingredients, connection):
 
     return missing
 
+def compute_deduction_plan(ingredient_name, needed_quantity, unit, connection):
+    """
+    Figures out exactly which pantry items to deduct from, and how much,
+    to cover 'needed_quantity' of an ingredient -- oldest items (lowest id) first.
+    """
+    matching_items = connection.execute(
+        "SELECT * FROM items WHERE name LIKE ? AND unit = ? ORDER BY id ASC",
+        (f"%{ingredient_name}%", unit)
+    ).fetchall()
+
+    plan = []
+    remaining_needed = needed_quantity
+
+    for item in matching_items:
+        if remaining_needed <= 0:
+            break
+
+        deduct_amount = min(item["quantity"], remaining_needed)
+        new_quantity = item["quantity"] - deduct_amount
+
+        plan.append({
+            "item_id": item["id"],
+            "item_name": item["name"],
+            "old_quantity": item["quantity"],
+            "deduct_amount": deduct_amount,
+            "new_quantity": new_quantity,
+        })
+
+        remaining_needed -= deduct_amount
+
+    return plan
+
 @app.route("/", methods=["GET"])
 @login_required
 def show_pantry():
@@ -242,6 +274,62 @@ def delete_recipe(recipe_id):
     # Delete ingredients first -- they reference the recipe via foreign key
     connection.execute("DELETE FROM recipe_ingredients WHERE recipe_id = ?", (recipe_id,))
     connection.execute("DELETE FROM recipes WHERE id = ?", (recipe_id,))
+    connection.commit()
+    connection.close()
+    return redirect("/recipes")
+
+@app.route("/recipes/<int:recipe_id>/cook", methods=["GET"])
+@login_required
+def cook_preview(recipe_id):
+    connection = sqlite3.connect("pantry.db")
+    connection.row_factory = sqlite3.Row
+
+    recipe = connection.execute("SELECT * FROM recipes WHERE id = ?", (recipe_id,)).fetchone()
+    recipe_ingredients = connection.execute(
+        "SELECT * FROM recipe_ingredients WHERE recipe_id = ?", (recipe_id,)
+    ).fetchall()
+
+    full_plan = []
+    for ingredient in recipe_ingredients:
+        steps = compute_deduction_plan(
+            ingredient["ingredient_name"],
+            ingredient["quantity_needed"],
+            ingredient["unit"],
+            connection
+        )
+        full_plan.extend(steps)
+
+    connection.close()
+    return render_template(
+        "cook_preview.html",
+        recipe=recipe,
+        deduction_plan=full_plan,
+        username=session["username"]
+    )
+
+@app.route("/recipes/<int:recipe_id>/cook", methods=["POST"])
+@login_required
+def cook_confirm(recipe_id):
+    connection = sqlite3.connect("pantry.db")
+    connection.row_factory = sqlite3.Row
+
+    recipe_ingredients = connection.execute(
+        "SELECT * FROM recipe_ingredients WHERE recipe_id = ?", (recipe_id,)
+    ).fetchall()
+
+    for ingredient in recipe_ingredients:
+        steps = compute_deduction_plan(
+            ingredient["ingredient_name"],
+            ingredient["quantity_needed"],
+            ingredient["unit"],
+            connection
+        )
+        for step in steps:
+            connection.execute(
+                "UPDATE items SET quantity = ? WHERE id = ?",
+                (step["new_quantity"], step["item_id"])
+            )
+
     connection.commit()
     connection.close()
     return redirect("/recipes")

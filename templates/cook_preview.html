@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <h1>Cooking: {{ recipe.title }}</h1>
+
+  <p>Here's what will happen to your pantry if you confirm:</p>
+
+  <table class="cook-preview-table">
+    <thead>
+      <tr>
+        <th>Item</th>
+        <th>Before</th>
+        <th>After</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for step in deduction_plan %}
+        <tr>
+          <td>{{ step.item_name }}</td>
+          <td>{{ step.old_quantity }}</td>
+          <td>{{ step.new_quantity }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <form action="/recipes/{{ recipe.id }}/cook" method="POST">
+    <button type="submit" class="confirm-btn">Confirm - I cooked this</button>
+  </form>
+  <a href="/recipes">Cancel</a>
+{% endblock %}

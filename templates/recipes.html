@@ -33,6 +33,10 @@
             <li>{{ ingredient.quantity_needed }} {{ ingredient.unit }} {{ ingredient.ingredient_name }}</li>
           {% endfor %}
         </ul>
+        
+        {% if recipe.missing|length == 0 %}
+          <a href="/recipes/{{ recipe.id }}/cook" class="cook-btn">Cooked this</a>
+        {% endif %}
 
         <form action="/recipes/delete/{{ recipe.id }}" method="POST">
           <button type="submit" class="delete-btn">Delete</button>

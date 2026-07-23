@@ -247,3 +247,35 @@ details summary {
   color: #b04a4a;
   margin-bottom: 8px;
 }
+
+.cook-btn {
+  display: inline-block;
+  background-color: #7e916e;
+  color: white;
+  border-radius: 8px;
+  padding: 6px 12px;
+  text-decoration: none;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.cook-preview-table {
+  border-collapse: collapse;
+  margin-bottom: 16px;
+}
+
+.cook-preview-table th,
+.cook-preview-table td {
+  border: 1px solid #ccc;
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.confirm-btn {
+  background-color: #7e916e;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 16px;
+  cursor: pointer;
+}
