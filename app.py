@@ -54,6 +54,11 @@ def get_all_recipes():
     connection.close()
     return result
 
+def normalize_unit(unit):
+    # Makes "cup", "Cups", "CUPS" all compare as equal, since they
+    # all describe the same actual unit -- just typed differently.
+    return unit.strip().lower().rstrip("s")
+
 def check_recipe_availability(recipe_ingredients, connection):
     """
     For a given recipe's ingredient list, check what's missing or
@@ -76,7 +81,9 @@ def check_recipe_availability(recipe_ingredients, connection):
             (f"%{needed_name}%", needed_unit)
         ).fetchall()
 
-        total_available = sum(item["quantity"] for item in matching_items)
+        total_available = sum(item["quantity"] for item in matching_items
+                              if normalize_unit(item["unit"]) == normalize_unit(needed_unit)
+                              )
 
         if total_available < needed_quantity:
             missing.append(f"{needed_name} (need {needed_quantity} {needed_unit}, have {total_available})")
@@ -84,14 +91,15 @@ def check_recipe_availability(recipe_ingredients, connection):
     return missing
 
 def compute_deduction_plan(ingredient_name, needed_quantity, unit, connection):
-    """
-    Figures out exactly which pantry items to deduct from, and how much,
-    to cover 'needed_quantity' of an ingredient -- oldest items (lowest id) first.
-    """
-    matching_items = connection.execute(
-        "SELECT * FROM items WHERE name LIKE ? AND unit = ? ORDER BY id ASC",
-        (f"%{ingredient_name}%", unit)
+    all_name_matches = connection.execute(
+        "SELECT * FROM items WHERE name LIKE ? ORDER BY id ASC",
+        (f"%{ingredient_name}%",)
     ).fetchall()
+
+    matching_items = [
+        item for item in all_name_matches
+        if normalize_unit(item["unit"]) == normalize_unit(unit)
+    ]
 
     plan = []
     remaining_needed = needed_quantity
