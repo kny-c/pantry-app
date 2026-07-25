@@ -15,26 +15,22 @@ def login_required(original_function):
     return wrapper
 
 # ----------------------------------------------------
-def get_all_items():
+def get_all_items(user_id):
     # Open a connection to the database file each time we need it.
     connection = sqlite3.connect("pantry.db")
-
     # By default, sqlite3 returns each row as a plain tuple, like (1, "Eggs", 12.0, ...).
     # Setting row_factory like this makes rows behave like dictionaries instead,
     # so in Jinja we can keep writing item.name instead of item[1].
     connection.row_factory = sqlite3.Row
-
-    cursor = connection.execute("SELECT * FROM items")
+    cursor = connection.execute("SELECT * FROM items WHERE user_id = ?", (user_id,))
     items = cursor.fetchall()
-
     connection.close()
     return items
 
-def get_all_recipes():
+def get_all_recipes(user_id):
     connection = sqlite3.connect("pantry.db")
     connection.row_factory = sqlite3.Row
-
-    recipes = connection.execute("SELECT * FROM recipes").fetchall()
+    recipes = connection.execute("SELECT * FROM recipes WHERE user_id = ?", (user_id,)).fetchall()
 
     # Convert each recipe row into a plain dict so we can attach
     # its ingredient list to it -- sqlite3.Row itself doesn't allow
@@ -48,7 +44,7 @@ def get_all_recipes():
             (recipe["id"],)
         ).fetchall() 
         recipe_dict["ingredients"] = ingredients
-        recipe_dict["missing"] = check_recipe_availability(ingredients, connection)
+        recipe_dict["missing"] = check_recipe_availability(ingredients, connection, user_id)
         result.append(recipe_dict)
 
     connection.close()
@@ -59,7 +55,7 @@ def normalize_unit(unit):
     # all describe the same actual unit -- just typed differently.
     return unit.strip().lower().rstrip("s")
 
-def check_recipe_availability(recipe_ingredients, connection):
+def check_recipe_availability(recipe_ingredients, connection, user_id):
     """
     For a given recipe's ingredient list, check what's missing or
     insufficient in the current pantry. Returns a list of missing
@@ -77,8 +73,8 @@ def check_recipe_availability(recipe_ingredients, connection):
         needed_unit = ingredient["unit"]
 
         matching_items = connection.execute(
-            "SELECT * FROM items WHERE name LIKE ? AND unit = ?",
-            (f"%{needed_name}%", needed_unit)
+            "SELECT * FROM items WHERE name LIKE ? AND user_id = ?",
+            (f"%{needed_name}%", user_id)
         ).fetchall()
 
         total_available = sum(item["quantity"] for item in matching_items
@@ -90,10 +86,10 @@ def check_recipe_availability(recipe_ingredients, connection):
 
     return missing
 
-def compute_deduction_plan(ingredient_name, needed_quantity, unit, connection):
+def compute_deduction_plan(ingredient_name, needed_quantity, unit, connection, user_id):
     all_name_matches = connection.execute(
-        "SELECT * FROM items WHERE name LIKE ? ORDER BY id ASC",
-        (f"%{ingredient_name}%",)
+        "SELECT * FROM items WHERE name LIKE ? AND user_id = ? ORDER BY id ASC",
+        (f"%{ingredient_name}%", user_id)
     ).fetchall()
 
     matching_items = [
@@ -126,7 +122,7 @@ def compute_deduction_plan(ingredient_name, needed_quantity, unit, connection):
 @app.route("/", methods=["GET"])
 @login_required
 def show_pantry():
-    items = get_all_items()
+    items = get_all_items(session["user_id"])
     return render_template("index.html", items=items, username=session["username"])
 
 @app.route("/add", methods=["POST"])
@@ -141,8 +137,8 @@ def add_item():
 
     connection = sqlite3.connect("pantry.db")
     connection.execute(
-        "INSERT INTO items (name, quantity, unit, expiration_date) VALUES (?, ?, ?, ?)",
-        (name, quantity, unit, expiration_date)
+        "INSERT INTO items (name, quantity, unit, expiration_date, user_id) VALUES (?, ?, ?, ?, ?)",
+        (name, quantity, unit, expiration_date, session["user_id"])
     )
     connection.commit()
     connection.close()
@@ -155,7 +151,8 @@ def add_item():
 @login_required
 def delete_item(item_id):
     connection = sqlite3.connect("pantry.db")
-    connection.execute("DELETE FROM items WHERE id = ?", (item_id,))
+    # Delete the item only if it belongs to the currently logged-in user (Safeguard)
+    connection.execute("DELETE FROM items WHERE id = ? AND user_id = ?", (item_id, session["user_id"]))
     connection.commit()
     connection.close()
     return redirect("/")
@@ -170,8 +167,8 @@ def edit_item(item_id):
 
     connection = sqlite3.connect("pantry.db")
     connection.execute(
-        "UPDATE items SET name = ?, quantity = ?, unit = ?, expiration_date = ? WHERE id = ?",
-        (name, quantity, unit, expiration_date, item_id)
+        "UPDATE items SET name = ?, quantity = ?, unit = ?, expiration_date = ? WHERE id = ? AND user_id = ?",
+        (name, quantity, unit, expiration_date, item_id, session["user_id"])
     )
     connection.commit()
     connection.close()
@@ -238,7 +235,7 @@ def logout():
 @app.route("/recipes", methods=["GET"])
 @login_required
 def show_recipes():
-    recipes = get_all_recipes()
+    recipes = get_all_recipes(session["user_id"])
     return render_template("recipes.html", recipes=recipes, username=session["username"])
 
 @app.route("/recipes/add", methods=["POST"])
@@ -250,8 +247,8 @@ def add_recipe():
 
     connection = sqlite3.connect("pantry.db")
     cursor = connection.execute(
-        "INSERT INTO recipes (title, instructions) VALUES (?, ?)",
-        (title, instructions)
+        "INSERT INTO recipes (title, instructions, user_id) VALUES (?, ?, ?)",
+        (title, instructions, session["user_id"])
     )
     # lastrowid gives us the id SQLite just auto-assigned to the row
     # we inserted above -- we need it to link ingredients to this recipe.
@@ -279,10 +276,13 @@ def add_recipe():
 @login_required
 def delete_recipe(recipe_id):
     connection = sqlite3.connect("pantry.db")
-    # Delete ingredients first -- they reference the recipe via foreign key
-    connection.execute("DELETE FROM recipe_ingredients WHERE recipe_id = ?", (recipe_id,))
-    connection.execute("DELETE FROM recipes WHERE id = ?", (recipe_id,))
-    connection.commit()
+    recipe = connection.execute(
+        "SELECT * FROM recipes WHERE id = ? AND user_id = ?", (recipe_id, session["user_id"])
+    ).fetchone()
+    if recipe is not None:
+        connection.execute("DELETE FROM recipe_ingredients WHERE recipe_id = ?", (recipe_id,))
+        connection.execute("DELETE FROM recipes WHERE id = ?", (recipe_id,))
+        connection.commit()
     connection.close()
     return redirect("/recipes")
 
@@ -292,7 +292,12 @@ def cook_preview(recipe_id):
     connection = sqlite3.connect("pantry.db")
     connection.row_factory = sqlite3.Row
 
-    recipe = connection.execute("SELECT * FROM recipes WHERE id = ?", (recipe_id,)).fetchone()
+    recipe = connection.execute("SELECT * FROM recipes WHERE id = ? AND user_id = ?", (recipe_id, session["user_id"])).fetchone()
+
+    if recipe is None:
+        connection.close()
+        return redirect("/recipes")
+
     recipe_ingredients = connection.execute(
         "SELECT * FROM recipe_ingredients WHERE recipe_id = ?", (recipe_id,)
     ).fetchall()
@@ -303,11 +308,12 @@ def cook_preview(recipe_id):
             ingredient["ingredient_name"],
             ingredient["quantity_needed"],
             ingredient["unit"],
-            connection
+            connection,
+            session["user_id"]
         )
         full_plan.extend(steps)
-
     connection.close()
+
     return render_template(
         "cook_preview.html",
         recipe=recipe,
@@ -321,6 +327,11 @@ def cook_confirm(recipe_id):
     connection = sqlite3.connect("pantry.db")
     connection.row_factory = sqlite3.Row
 
+    recipe = connection.execute("SELECT * FROM recipes WHERE id = ? AND user_id = ?", (recipe_id, session["user_id"])).fetchone()
+    if recipe is None:
+        connection.close()
+        return redirect("/recipes")
+
     recipe_ingredients = connection.execute(
         "SELECT * FROM recipe_ingredients WHERE recipe_id = ?", (recipe_id,)
     ).fetchall()
@@ -330,8 +341,10 @@ def cook_confirm(recipe_id):
             ingredient["ingredient_name"],
             ingredient["quantity_needed"],
             ingredient["unit"],
-            connection
+            connection,
+            session["user_id"]
         )
+        
         for step in steps:
             connection.execute(
                 "UPDATE items SET quantity = ? WHERE id = ?",

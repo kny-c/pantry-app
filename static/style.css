@@ -203,6 +203,7 @@ details summary {
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
   padding: 16px 20px;
   width: 260px;
+  position: relative;
 }
 
 .recipe-card .instructions {
@@ -278,4 +279,22 @@ details summary {
   border-radius: 8px;
   padding: 10px 16px;
   cursor: pointer;
+}
+
+.nav-links {
+  display: inline-flex;
+  gap: 16px;
+  margin-left: 24px;
+}
+
+.nav-links a {
+  color: white;
+  text-decoration: none;
+  font-size: 14px;
+  opacity: 0.85;
+}
+
+.nav-links a:hover {
+  opacity: 1;
+  text-decoration: underline;
 }

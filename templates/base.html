@@ -10,6 +10,10 @@
   <nav class="navbar">
     <span class="logo">Pantry Tracker</span>
     {% if username %}
+      <span class="nav-links">
+        <a href="/">Pantry</a>
+        <a href="/recipes">Recipes</a>
+      </span>
       <span class="nav-user">
         {{ username }}
         <form action="/logout" method="POST" class="logout-form">
