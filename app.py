@@ -16,7 +16,8 @@ def login_required(original_function):
 
 # ----------------------------------------------------
 def get_all_items(user_id):
-    # Open a connection to the database file each time we need it.
+    from datetime import date, timedelta
+
     connection = sqlite3.connect("pantry.db")
     # By default, sqlite3 returns each row as a plain tuple, like (1, "Eggs", 12.0, ...).
     # Setting row_factory like this makes rows behave like dictionaries instead,
@@ -25,7 +26,17 @@ def get_all_items(user_id):
     cursor = connection.execute("SELECT * FROM items WHERE user_id = ?", (user_id,))
     items = cursor.fetchall()
     connection.close()
-    return items
+
+    today = date.today().isoformat()
+    soon_cutoff = (date.today() + timedelta(days=3)).isoformat()
+
+    result = []
+    for item in items:
+        item_dict = dict(item)
+        exp = item_dict.get("expiration_date")
+        item_dict["expiring_soon"] = bool(exp) and today <= exp <= soon_cutoff
+        result.append(item_dict)
+    return result
 
 def get_all_recipes(user_id):
     connection = sqlite3.connect("pantry.db")

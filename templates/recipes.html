@@ -17,14 +17,16 @@
 
   <div class="recipe-list">
     {% for recipe in recipes %}
-      <div class="recipe-card">
+      <div class="recipe-card {% if recipe.missing|length == 0 %}recipe-ready{% else %}recipe-missing{% endif %}">
         <h3>{{ recipe.title }}</h3>
+
         {% if recipe.missing|length == 0 %}
           <span class="badge badge-ready">Ready to cook</span>
         {% else %}
           <span class="badge badge-missing">Missing ingredients</span>
           <span class="missing-ingredients">Missing ingredients: {{ recipe.missing | join(", ") }}</span>
         {% endif %}
+        
         <p class="instructions">{{ recipe.instructions }}</p>
 
         <p class="ingredient-heading">Ingredients:</p>
