@@ -34,6 +34,7 @@ def get_all_items(user_id):
     for item in items:
         item_dict = dict(item)
         exp = item_dict.get("expiration_date")
+        item_dict["is_expired"] = bool(exp) and exp < today
         item_dict["expiring_soon"] = bool(exp) and today <= exp <= soon_cutoff
         result.append(item_dict)
     return result
@@ -134,7 +135,15 @@ def compute_deduction_plan(ingredient_name, needed_quantity, unit, connection, u
 @login_required
 def show_pantry():
     items = get_all_items(session["user_id"])
-    return render_template("index.html", items=items, username=session["username"])
+
+    expired_items = [item for item in items if item["is_expired"]]
+    expiring_items = [item for item in items if item["expiring_soon"] and not item["is_expired"]]
+    normal_items = [item for item in items if not item["is_expired"] and not item["expiring_soon"]]
+    return render_template("index.html", 
+                           expired_items=expired_items,
+                           expiring_items=expiring_items,
+                           normal_items=normal_items,
+                           username=session["username"])
 
 @app.route("/add", methods=["POST"])
 @login_required

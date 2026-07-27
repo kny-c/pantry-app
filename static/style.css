@@ -43,6 +43,25 @@ h1 {
   margin-bottom: 24px;
 }
 
+.section-heading {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 32px 0 14px 0;
+  color: #555;
+}
+
+.section-heading:first-of-type {
+  margin-top: 0;
+}
+
+.section-heading-expired {
+  color: var(--danger);
+}
+
+.section-heading-warning {
+  color: var(--warning);
+}
+
 /* ---------- Navbar ---------- */
 .navbar {
   background-color: var(--sage);
@@ -176,6 +195,10 @@ h1 {
 
 .card-warning {
   border-left-color: var(--warning);
+}
+
+.card-expired {
+  border-left-color: var(--danger);
 }
 
 .recipe-ready {
