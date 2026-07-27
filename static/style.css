@@ -22,9 +22,9 @@ body {
   font-family: var(--font-body);
   background-color: #F6F4EE;
   background-image:
-    radial-gradient(circle at 15% 20%, rgba(126, 145, 110, 0.35) 0%, transparent 40%),
-    radial-gradient(circle at 85% 15%, rgba(217, 142, 74, 0.22) 0%, transparent 35%),
-    radial-gradient(circle at 75% 80%, rgba(126, 145, 110, 0.25) 0%, transparent 40%);
+    radial-gradient(circle at 15% 20%, rgba(126, 145, 110, 0.55) 0%, transparent 45%),
+    radial-gradient(circle at 85% 15%, rgba(217, 142, 74, 0.40) 0%, transparent 40%),
+    radial-gradient(circle at 75% 80%, rgba(126, 145, 110, 0.45) 0%, transparent 45%);
   background-attachment: fixed;
   color: var(--ink);
   line-height: 1.5;
@@ -155,10 +155,10 @@ h1 {
 }
 
 .card, .recipe-card {
-  background-color: rgba(255, 255, 255, 0.45);
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.6);
+  background-color: rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 0.5px solid rgba(255, 255, 255, 0.45);
   border-radius: 14px;
   box-shadow: 0 8px 24px rgba(0,0,0,0.06);
   padding: 20px 22px 56px 22px;
