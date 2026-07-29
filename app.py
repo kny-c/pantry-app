@@ -1,10 +1,11 @@
 import sqlite3
 from functools import wraps
-from flask import Flask, render_template, request, redirect, session
+from flask import Flask, render_template, request, redirect, session, flash
 from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import date, timedelta
 
 app = Flask(__name__)
-app.secret_key = "dev-secret-change-this-later"
+app.secret_key = "dwnqiod3289dh3289hr8932hf982jr2390e3j2s90g49yh3204rnco432n84943213d32cng54.43290h4d23h83426jgf"
 
 def login_required(original_function):
     @wraps(original_function)
@@ -14,10 +15,19 @@ def login_required(original_function):
         return original_function(*args, **kwargs)
     return wrapper
 
+def parse_float(value, field_name):
+    """
+    Tries to convert a submitted form value into a float.
+    Returns (number, error_message) -- error_message is None if it worked.
+
+    """
+    try:
+        return float(value), None
+    except (ValueError, TypeError):
+        return None, f"'{value}' isn't a valid number for {field_name}."
+
 # ----------------------------------------------------
 def get_all_items(user_id):
-    from datetime import date, timedelta
-
     connection = sqlite3.connect("pantry.db")
     # By default, sqlite3 returns each row as a plain tuple, like (1, "Eggs", 12.0, ...).
     # Setting row_factory like this makes rows behave like dictionaries instead,
@@ -150,10 +160,20 @@ def show_pantry():
 def add_item():
     # request.form is a dictionary-like object holding whatever the
     # submitted form sent. Each key matches an input's "name" attribute.
-    name = request.form["name"]
-    quantity = request.form["quantity"]
-    unit = request.form["unit"]
-    expiration_date = request.form["expiration_date"]
+    name = request.form.get("name", "").strip()
+    quantity_raw = request.form.get("quantity", "").strip()
+    unit = request.form.get("unit", "").strip()
+    expiration_date = request.form.get("expiration_date", "").strip()
+
+    # Validate that name and unit are not empty, and that quantity is a valid float.
+    if not name or not unit:
+        flash("Name and unit are required fields.")
+        return redirect("/")
+    # Validate that quantity is a valid float
+    quantity, error = parse_float(quantity_raw, "quantity")
+    if error:
+        flash(error)
+        return redirect("/")
 
     connection = sqlite3.connect("pantry.db")
     connection.execute(
@@ -261,9 +281,34 @@ def show_recipes():
 @app.route("/recipes/add", methods=["POST"])
 @login_required
 def add_recipe():
-    title = request.form["title"]
-    instructions = request.form["instructions"]
-    ingredients_text = request.form["ingredients"]
+    title = request.form.get("title", "").strip()
+    instructions = request.form.get("instructions", "").strip()
+    ingredients_text = request.form.get("ingredients", "").strip()
+
+    if not title or not instructions or not ingredients_text:
+        flash("Title, instructions, and ingredients are required fields.")
+        return redirect("/recipes")
+
+    parsed_ingredients = []
+    skipped_lines = []
+    for line in ingredients_text.strip().split("\n"):
+        if not line.strip():
+            continue
+        parts = line.split(",")
+        if len(parts) != 3:
+            skipped_lines.append(line)
+            continue
+
+        name = parts[0].strip()
+        quantity, error = parse_float(parts[1].strip(), "ingredient quantity")
+
+        if error or not name or not unit:
+            skipped_lines.append(line)
+            continue
+        parsed_ingredients.append((name, quantity, unit))
+
+    if skipped_lines:
+        flash(f"Skipped {len(skipped_lines)} ingredient line(s) that weren't formatted as 'name, quantity, unit'.")
 
     connection = sqlite3.connect("pantry.db")
     cursor = connection.execute(
@@ -275,19 +320,12 @@ def add_recipe():
     new_recipe_id = cursor.lastrowid
 
     # Parse the textarea: one ingredient per line, formatted "name, quantity, unit"
-    for line in ingredients_text.strip().split("\n"):
-        parts = line.split(",")
-        if len(parts) != 3:
-            continue  # skip malformed lines instead of crashing
-        name = parts[0].strip()
-        quantity = parts[1].strip()
-        unit = parts[2].strip()
-
+    for name, quantity, unit in parsed_ingredients:
         connection.execute(
             "INSERT INTO recipe_ingredients (recipe_id, ingredient_name, quantity_needed, unit) VALUES (?, ?, ?, ?)",
             (new_recipe_id, name, quantity, unit)
         )
-
+        
     connection.commit()
     connection.close()
     return redirect("/recipes")
