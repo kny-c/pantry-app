@@ -1,11 +1,14 @@
+import os
 import sqlite3
 from functools import wraps
 from flask import Flask, render_template, request, redirect, session, flash
+from flask.cli import load_dotenv
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import date, timedelta
 
 app = Flask(__name__)
-app.secret_key = "dwnqiod3289dh3289hr8932hf982jr2390e3j2s90g49yh3204rnco432n84943213d32cng54.43290h4d23h83426jgf"
+load_dotenv()  # Load environment variables from .env file
+app.secret_key = os.getenv("SECRET_KEY")
 
 def login_required(original_function):
     @wraps(original_function)
@@ -325,7 +328,7 @@ def add_recipe():
             "INSERT INTO recipe_ingredients (recipe_id, ingredient_name, quantity_needed, unit) VALUES (?, ?, ?, ?)",
             (new_recipe_id, name, quantity, unit)
         )
-        
+
     connection.commit()
     connection.close()
     return redirect("/recipes")
