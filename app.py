@@ -2,12 +2,12 @@ import os
 import sqlite3
 from functools import wraps
 from flask import Flask, render_template, request, redirect, session, flash
-from flask.cli import load_dotenv
+from dotenv import load_dotenv
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import date, timedelta
 
+load_dotenv()
 app = Flask(__name__)
-load_dotenv()  # Load environment variables from .env file
 app.secret_key = os.getenv("SECRET_KEY")
 
 def login_required(original_function):
