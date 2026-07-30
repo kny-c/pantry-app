@@ -8,9 +8,14 @@ __pycache__/
 # macOS
 .DS_Store
 
-# VS Code (optional)
+# VS Code
 .vscode/
 
-pantry.db
-
+# Environment secrets
 .env
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+scripts/

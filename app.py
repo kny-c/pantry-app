@@ -304,7 +304,7 @@ def add_recipe():
 
         name = parts[0].strip()
         quantity, error = parse_float(parts[1].strip(), "ingredient quantity")
-
+        unit = parts[2].strip()
         if error or not name or not unit:
             skipped_lines.append(line)
             continue
