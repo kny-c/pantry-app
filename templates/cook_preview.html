@@ -25,6 +25,7 @@
   </table>
 
   <form action="/recipes/{{ recipe.id }}/cook" method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <button type="submit" class="confirm-btn">Confirm - I cooked this</button>
   </form>
   <a href="/recipes">Cancel</a>
