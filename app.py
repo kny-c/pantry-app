@@ -1,16 +1,22 @@
 import os
-import sqlite3
 from functools import wraps
 from flask import Flask, render_template, request, redirect, session, flash
 from dotenv import load_dotenv
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import date, timedelta
 from flask_wtf.csrf import CSRFProtect
+import psycopg2
+import psycopg2.extras
 
 load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY")
 csrf = CSRFProtect(app)
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+# ----------------------------------------------------
+def get_db_connection():
+    return psycopg2.connect(DATABASE_URL)
 
 def login_required(original_function):
     @wraps(original_function)
@@ -33,12 +39,9 @@ def parse_float(value, field_name):
 
 # ----------------------------------------------------
 def get_all_items(user_id):
-    connection = sqlite3.connect("pantry.db")
-    # By default, sqlite3 returns each row as a plain tuple, like (1, "Eggs", 12.0, ...).
-    # Setting row_factory like this makes rows behave like dictionaries instead,
-    # so in Jinja we can keep writing item.name instead of item[1].
-    connection.row_factory = sqlite3.Row
-    cursor = connection.execute("SELECT * FROM items WHERE user_id = ?", (user_id,))
+    connection = get_db_connection()
+    cursor = connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cursor.execute("SELECT * FROM items WHERE user_id = %s", (user_id,))
     items = cursor.fetchall()
     connection.close()
 
@@ -55,9 +58,10 @@ def get_all_items(user_id):
     return result
 
 def get_all_recipes(user_id):
-    connection = sqlite3.connect("pantry.db")
-    connection.row_factory = sqlite3.Row
-    recipes = connection.execute("SELECT * FROM recipes WHERE user_id = ?", (user_id,)).fetchall()
+    connection = get_db_connection()
+    cursor = connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cursor.execute("SELECT * FROM recipes WHERE user_id = %s", (user_id,))
+    recipes = cursor.fetchall()
 
     # Convert each recipe row into a plain dict so we can attach
     # its ingredient list to it -- sqlite3.Row itself doesn't allow
@@ -66,12 +70,13 @@ def get_all_recipes(user_id):
     for recipe in recipes:
         recipe_dict = dict(recipe)
         # For each recipe, fetch its ingredients from the recipe_ingredients table by recipe id
-        ingredients = connection.execute(
-            "SELECT * FROM recipe_ingredients WHERE recipe_id = ?",
+        cursor.execute(
+            "SELECT * FROM recipe_ingredients WHERE recipe_id = %s",
             (recipe["id"],)
-        ).fetchall() 
+        )
+        ingredients = cursor.fetchall()
         recipe_dict["ingredients"] = ingredients
-        recipe_dict["missing"] = check_recipe_availability(ingredients, connection, user_id)
+        recipe_dict["missing"] = check_recipe_availability(ingredients, cursor, user_id)
         result.append(recipe_dict)
 
     connection.close()
@@ -82,7 +87,7 @@ def normalize_unit(unit):
     # all describe the same actual unit -- just typed differently.
     return unit.strip().lower().rstrip("s")
 
-def check_recipe_availability(recipe_ingredients, connection, user_id):
+def check_recipe_availability(recipe_ingredients, cursor, user_id):
     """
     For a given recipe's ingredient list, check what's missing or
     insufficient in the current pantry. Returns a list of missing
@@ -99,10 +104,11 @@ def check_recipe_availability(recipe_ingredients, connection, user_id):
         needed_quantity = ingredient["quantity_needed"]
         needed_unit = ingredient["unit"]
 
-        matching_items = connection.execute(
-            "SELECT * FROM items WHERE name LIKE ? AND user_id = ?",
+        cursor.execute(
+            "SELECT * FROM items WHERE name ILIKE %s AND user_id = %s",
             (f"%{needed_name}%", user_id)
-        ).fetchall()
+        )
+        matching_items = cursor.fetchall()
 
         total_available = sum(item["quantity"] for item in matching_items
                               if normalize_unit(item["unit"]) == normalize_unit(needed_unit)
@@ -113,11 +119,12 @@ def check_recipe_availability(recipe_ingredients, connection, user_id):
 
     return missing
 
-def compute_deduction_plan(ingredient_name, needed_quantity, unit, connection, user_id):
-    all_name_matches = connection.execute(
-        "SELECT * FROM items WHERE name LIKE ? AND user_id = ? ORDER BY id ASC",
+def compute_deduction_plan(ingredient_name, needed_quantity, unit, cursor, user_id):
+    cursor.execute(
+        "SELECT * FROM items WHERE name ILIKE %s AND user_id = %s ORDER BY id ASC",
         (f"%{ingredient_name}%", user_id)
-    ).fetchall()
+    )
+    all_name_matches = cursor.fetchall()
 
     matching_items = [
         item for item in all_name_matches
@@ -180,9 +187,10 @@ def add_item():
         flash(error)
         return redirect("/")
 
-    connection = sqlite3.connect("pantry.db")
-    connection.execute(
-        "INSERT INTO items (name, quantity, unit, expiration_date, user_id) VALUES (?, ?, ?, ?, ?)",
+    connection = get_db_connection()
+    cursor = connection.cursor()
+    cursor.execute(
+        "INSERT INTO items (name, quantity, unit, expiration_date, user_id) VALUES (%s, %s, %s, %s, %s)",
         (name, quantity, unit, expiration_date, session["user_id"])
     )
     connection.commit()
@@ -195,9 +203,10 @@ def add_item():
 @app.route("/delete/<int:item_id>", methods=["POST"])
 @login_required
 def delete_item(item_id):
-    connection = sqlite3.connect("pantry.db")
+    connection = get_db_connection()
     # Delete the item only if it belongs to the currently logged-in user (Safeguard)
-    connection.execute("DELETE FROM items WHERE id = ? AND user_id = ?", (item_id, session["user_id"]))
+    cursor = connection.cursor()
+    cursor.execute("DELETE FROM items WHERE id = %s AND user_id = %s", (item_id, session["user_id"]))
     connection.commit()
     connection.close()
     return redirect("/")
@@ -210,9 +219,10 @@ def edit_item(item_id):
     unit = request.form["unit"]
     expiration_date = request.form["expiration_date"]
 
-    connection = sqlite3.connect("pantry.db")
-    connection.execute(
-        "UPDATE items SET name = ?, quantity = ?, unit = ?, expiration_date = ? WHERE id = ? AND user_id = ?",
+    connection = get_db_connection()
+    cursor = connection.cursor()
+    cursor.execute(
+        "UPDATE items SET name = %s, quantity = %s, unit = %s, expiration_date = %s WHERE id = %s AND user_id = %s",
         (name, quantity, unit, expiration_date, item_id, session["user_id"])
     )
     connection.commit()
@@ -231,15 +241,17 @@ def signup():
     password = request.form["password"]
     password_hash = generate_password_hash(password)
 
-    connection = sqlite3.connect("pantry.db")
+    connection = get_db_connection()
+    cursor = connection.cursor()
     try:
-        connection.execute(
-            "INSERT INTO users (username, password_hash) VALUES (?, ?)",
+        cursor.execute(
+            "INSERT INTO users (username, password_hash) VALUES (%s, %s)",
             (username, password_hash)
         )
         connection.commit()
-    except sqlite3.IntegrityError:
+    except psycopg2.IntegrityError:
         # This fires if the UNIQUE constraint on username is violated
+        connection.rollback()
         connection.close()
         return render_template("signup.html", error="That username is already taken.")
     connection.close()
@@ -255,11 +267,12 @@ def login():
     username = request.form["username"]
     password = request.form["password"]
 
-    connection = sqlite3.connect("pantry.db")
-    connection.row_factory = sqlite3.Row
-    user = connection.execute(
-        "SELECT * FROM users WHERE username = ?", (username,)
-    ).fetchone()
+    connection = get_db_connection()
+    cursor = connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cursor.execute(
+        "SELECT * FROM users WHERE username = %s", (username,)
+    )
+    user = cursor.fetchone()
     connection.close()
 
     # fetchone() returns None if no row matched -- i.e. username doesn't exist
@@ -315,19 +328,18 @@ def add_recipe():
     if skipped_lines:
         flash(f"Skipped {len(skipped_lines)} ingredient line(s) that weren't formatted as 'name, quantity, unit'.")
 
-    connection = sqlite3.connect("pantry.db")
-    cursor = connection.execute(
-        "INSERT INTO recipes (title, instructions, user_id) VALUES (?, ?, ?)",
+    connection = get_db_connection()
+    cursor = connection.cursor()
+    cursor.execute(
+        "INSERT INTO recipes (title, instructions, user_id) VALUES (%s, %s, %s) RETURNING id",
         (title, instructions, session["user_id"])
     )
-    # lastrowid gives us the id SQLite just auto-assigned to the row
-    # we inserted above -- we need it to link ingredients to this recipe.
-    new_recipe_id = cursor.lastrowid
+    new_recipe_id = cursor.fetchone()[0]  # Get the ID of the newly inserted recipe
 
     # Parse the textarea: one ingredient per line, formatted "name, quantity, unit"
     for name, quantity, unit in parsed_ingredients:
-        connection.execute(
-            "INSERT INTO recipe_ingredients (recipe_id, ingredient_name, quantity_needed, unit) VALUES (?, ?, ?, ?)",
+        cursor.execute(
+            "INSERT INTO recipe_ingredients (recipe_id, ingredient_name, quantity_needed, unit) VALUES (%s, %s, %s, %s)",
             (new_recipe_id, name, quantity, unit)
         )
 
@@ -338,13 +350,15 @@ def add_recipe():
 @app.route("/recipes/delete/<int:recipe_id>", methods=["POST"])
 @login_required
 def delete_recipe(recipe_id):
-    connection = sqlite3.connect("pantry.db")
-    recipe = connection.execute(
-        "SELECT * FROM recipes WHERE id = ? AND user_id = ?", (recipe_id, session["user_id"])
-    ).fetchone()
+    connection = get_db_connection()
+    cursor = connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cursor.execute(
+        "SELECT * FROM recipes WHERE id = %s AND user_id = %s", (recipe_id, session["user_id"])
+    )
+    recipe = cursor.fetchone()
     if recipe is not None:
-        connection.execute("DELETE FROM recipe_ingredients WHERE recipe_id = ?", (recipe_id,))
-        connection.execute("DELETE FROM recipes WHERE id = ?", (recipe_id,))
+        cursor.execute("DELETE FROM recipe_ingredients WHERE recipe_id = %s", (recipe_id,))
+        cursor.execute("DELETE FROM recipes WHERE id = %s", (recipe_id,))
         connection.commit()
     connection.close()
     return redirect("/recipes")
@@ -352,18 +366,22 @@ def delete_recipe(recipe_id):
 @app.route("/recipes/<int:recipe_id>/cook", methods=["GET"])
 @login_required
 def cook_preview(recipe_id):
-    connection = sqlite3.connect("pantry.db")
-    connection.row_factory = sqlite3.Row
+    connection = get_db_connection()
+    cursor = connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
-    recipe = connection.execute("SELECT * FROM recipes WHERE id = ? AND user_id = ?", (recipe_id, session["user_id"])).fetchone()
+    cursor.execute(
+        "SELECT * FROM recipes WHERE id = %s AND user_id = %s", (recipe_id, session["user_id"])
+    )
+    recipe = cursor.fetchone()
 
     if recipe is None:
         connection.close()
         return redirect("/recipes")
 
-    recipe_ingredients = connection.execute(
-        "SELECT * FROM recipe_ingredients WHERE recipe_id = ?", (recipe_id,)
-    ).fetchall()
+    cursor.execute(
+        "SELECT * FROM recipe_ingredients WHERE recipe_id = %s", (recipe_id,)
+    )
+    recipe_ingredients = cursor.fetchall()
 
     full_plan = []
     for ingredient in recipe_ingredients:
@@ -371,7 +389,7 @@ def cook_preview(recipe_id):
             ingredient["ingredient_name"],
             ingredient["quantity_needed"],
             ingredient["unit"],
-            connection,
+            cursor,
             session["user_id"]
         )
         full_plan.extend(steps)
@@ -387,31 +405,36 @@ def cook_preview(recipe_id):
 @app.route("/recipes/<int:recipe_id>/cook", methods=["POST"])
 @login_required
 def cook_confirm(recipe_id):
-    connection = sqlite3.connect("pantry.db")
-    connection.row_factory = sqlite3.Row
+    connection = get_db_connection()
+    cursor = connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
-    recipe = connection.execute("SELECT * FROM recipes WHERE id = ? AND user_id = ?", (recipe_id, session["user_id"])).fetchone()
+    cursor.execute(
+        "SELECT * FROM recipes WHERE id = %s AND user_id = %s", (recipe_id, session["user_id"])
+    )
+    recipe = cursor.fetchone()
+    
     if recipe is None:
         connection.close()
         return redirect("/recipes")
 
-    recipe_ingredients = connection.execute(
-        "SELECT * FROM recipe_ingredients WHERE recipe_id = ?", (recipe_id,)
-    ).fetchall()
+    cursor.execute(
+        "SELECT * FROM recipe_ingredients WHERE recipe_id = %s", (recipe_id,)
+    )
+    recipe_ingredients = cursor.fetchall()
 
     for ingredient in recipe_ingredients:
         steps = compute_deduction_plan(
             ingredient["ingredient_name"],
             ingredient["quantity_needed"],
             ingredient["unit"],
-            connection,
+            cursor,
             session["user_id"]
         )
         
         for step in steps:
-            connection.execute(
-                "UPDATE items SET quantity = ? WHERE id = ?",
-                (step["new_quantity"], step["item_id"])
+            cursor.execute(
+                "UPDATE items SET quantity = %s WHERE id = %s AND user_id = %s",
+                (step["new_quantity"], step["item_id"], session["user_id"])
             )
 
     connection.commit()
