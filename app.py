@@ -1,5 +1,6 @@
 import os
 from functools import wraps
+import re
 from flask import Flask, render_template, request, redirect, session, flash
 from dotenv import load_dotenv
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -93,7 +94,7 @@ def check_recipe_availability(recipe_ingredients, cursor, user_id):
     insufficient in the current pantry. Returns a list of missing
     ingredient descriptions (empty list = fully ready to cook).
     """
-    missing = []
+    issues = []
 
     # For each ingredient in the recipe, check if we have enough in the pantry.
     for ingredient in recipe_ingredients:
@@ -105,19 +106,43 @@ def check_recipe_availability(recipe_ingredients, cursor, user_id):
         needed_unit = ingredient["unit"]
 
         cursor.execute(
-            "SELECT * FROM items WHERE name ILIKE %s AND user_id = %s",
-            (f"%{needed_name}%", user_id)
+            "SELECT * FROM items WHERE name ~* %s AND user_id = %s",
+            (r'(^|\s)' + re.escape(needed_name) + r'(\s|$)', user_id)
         )
         matching_items = cursor.fetchall()
 
-        total_available = sum(item["quantity"] for item in matching_items
-                              if normalize_unit(item["unit"]) == normalize_unit(needed_unit)
-                              )
+        unit_matches = [
+            item for item in matching_items
+            if normalize_unit(item["unit"]) == normalize_unit(needed_unit)
+        ]
+        total_available = sum(item["quantity"] for item in unit_matches)
 
-        if total_available < needed_quantity:
-            missing.append(f"{needed_name} (need {needed_quantity} {needed_unit}, have {total_available})")
+        if total_available >= needed_quantity:
+            continue  # We have enough of this ingredient, so no issue to report.
 
-    return missing
+        mismatched = [item for item in matching_items if item["id"] not in {u["id"] for u in unit_matches}]
+
+        if not matching_items:
+            issues.append({
+                "ingredient_name": needed_name,
+                "status": "missing",
+                "detail": f"need {needed_quantity} {needed_unit}, have 0",
+            })
+        elif mismatched:
+            other_units = sorted(set(normalize_unit(item["unit"]) for item in mismatched))
+            issues.append({
+                "ingredient_name": needed_name,
+                "status": "unsynced_unit",
+                "detail": f"need {needed_quantity} {needed_unit}, have {total_available} {needed_unit} "
+                          f"plus some logged as {', '.join(other_units)}",
+            })
+        else:
+            issues.append({
+                "ingredient_name": needed_name,
+                "status": "missing",
+                "detail": f"need {needed_quantity} {needed_unit}, have {total_available}",
+            })
+    return issues
 
 def compute_deduction_plan(ingredient_name, needed_quantity, unit, cursor, user_id):
     cursor.execute(

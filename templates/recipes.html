@@ -24,8 +24,16 @@
         {% if recipe.missing|length == 0 %}
           <span class="badge badge-ready">Ready to cook</span>
         {% else %}
-          <span class="badge badge-missing">Missing ingredients</span>
-          <span class="missing-ingredients">Missing ingredients: {{ recipe.missing | join(", ") }}</span>
+          <span class="badge badge-missing">Needs Attention</span>
+          <ul class="missing-ingredients">
+            {% for issue in recipe.missing %}
+              {% if issue.status == "unsynced_unit" %}
+                <li class="issue-unsynced"> {{ issue.ingredient_name }} -- {{ issue.detail }} </li>
+              {% else %}
+                <li class="issue-missing"> {{ issue.ingredient_name }} -- {{ issue.detail }} </li>
+              {% endif %}
+            {% endfor %}
+          </ul>
         {% endif %}
         
         <p class="instructions">{{ recipe.instructions }}</p>
