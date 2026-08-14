@@ -7,15 +7,64 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="text" name="title" placeholder="Recipe title" required>
     <textarea name="instructions" placeholder="Instructions" rows="3" required></textarea>
-    <textarea
-      name="ingredients"
-      placeholder="One ingredient per line, like:&#10;flour, 2, cups&#10;egg, 3, count"
-      rows="4"
-      required
-    ></textarea>
+    
+    <div id="ingredient-rows">
+      <div class="ingredient-row">
+        <input type="text" name="ingredient_name" placeholder="Ingredient name" required>
+        <input type="number" name="ingredient_quantity" placeholder="Quantity" step="any" min="0" required>
+        <select name="ingredient_unit" required>
+          <option value="" disabled selected>Select unit</option>
+          {% for unit in unit_options %}
+            <option value="{{ unit }}">{{ unit }}</option>
+          {% endfor %}
+        </select>
+        <button type="button" class="remove-ingredient-btn">Remove</button>
+      </div>
+    </div>
+
+    <template id="ingredient-row-template">
+      <div class="ingredient-row">
+        <input type="text" name="ingredient_name" placeholder="Ingredient name" required>
+        <input type="number" name="ingredient_quantity" placeholder="Quantity" step="any" min="0" required>
+        <select name="ingredient_unit" required>
+          <option value="" disabled selected>Select unit</option>
+          {% for unit in unit_options %}
+            <option value="{{ unit }}">{{ unit }}</option>
+          {% endfor %}
+        </select>
+        <button type="button" class="remove-ingredient-btn">Remove</button>
+      </div>
+    </template>
+
+    <button type="button" id="add-ingredient-btn">+ Add ingredient</button>
     <button type="submit">Add recipe</button>
   </form>
 
+  <script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const rowsContainer = document.getElementById("ingredient-rows");
+    const rowTemplate = document.getElementById("ingredient-row-template");
+    const addBtn = document.getElementById("add-ingredient-btn");
+
+    addBtn.addEventListener("click", () => {
+      const clone = rowTemplate.content.cloneNode(true);
+      rowsContainer.appendChild(clone);
+    });
+
+    rowsContainer.addEventListener("click", (event) => {
+      if (event.target.classList.contains("remove-ingredient-btn")) {
+        if (rowsContainer.children.length === 1) {
+          alert("You must have at least one ingredient.");
+          return;
+        }
+        if (confirm("Remove this ingredient?")) {
+          event.target.closest(".ingredient-row").remove();
+        }
+      }
+    });
+  })
+  </script>
+  
   <div class="recipe-list">
     {% for recipe in recipes %}
       <div class="recipe-card {% if recipe.missing|length == 0 %}recipe-ready{% else %}recipe-missing{% endif %}">

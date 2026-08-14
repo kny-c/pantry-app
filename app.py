@@ -14,7 +14,7 @@ app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY")
 csrf = CSRFProtect(app)
 DATABASE_URL = os.getenv("DATABASE_URL")
-
+UNIT_OPTIONS = ["cup", "tbsp", "tsp", "fl oz", "ml", "l", "oz", "lb", "g", "kg", "count", "can", "package", "clove"]
 # ----------------------------------------------------
 def get_db_connection():
     return psycopg2.connect(DATABASE_URL)
@@ -47,7 +47,7 @@ def get_all_items(user_id):
     connection.close()
 
     today = date.today().isoformat()
-    soon_cutoff = (date.today() + timedelta(days=3)).isoformat()
+    soon_cutoff = (date.today() + timedelta(days=5)).isoformat()
 
     result = []
     for item in items:
@@ -133,8 +133,8 @@ def check_recipe_availability(recipe_ingredients, cursor, user_id):
             issues.append({
                 "ingredient_name": needed_name,
                 "status": "unsynced_unit",
-                "detail": f"need {needed_quantity} {needed_unit}, have {total_available} {needed_unit} "
-                          f"plus some logged as {', '.join(other_units)}",
+                "detail": f"need {needed_quantity} {needed_unit}, "
+                          f"but some stored as {', '.join(other_units)}",
             })
         else:
             issues.append({
@@ -146,8 +146,8 @@ def check_recipe_availability(recipe_ingredients, cursor, user_id):
 
 def compute_deduction_plan(ingredient_name, needed_quantity, unit, cursor, user_id):
     cursor.execute(
-        "SELECT * FROM items WHERE name ILIKE %s AND user_id = %s ORDER BY id ASC",
-        (f"%{ingredient_name}%", user_id)
+        "SELECT * FROM items WHERE name ~* %s AND user_id = %s ORDER BY id ASC",
+        (r'(^|\s)' + re.escape(ingredient_name) + r'(\s|$)', user_id)
     )
     all_name_matches = cursor.fetchall()
 
@@ -178,6 +178,7 @@ def compute_deduction_plan(ingredient_name, needed_quantity, unit, cursor, user_
 
     return plan
 
+# ----------------------------------------------------
 @app.route("/", methods=["GET"])
 @login_required
 def show_pantry():
@@ -319,39 +320,40 @@ def logout():
 @login_required
 def show_recipes():
     recipes = get_all_recipes(session["user_id"])
-    return render_template("recipes.html", recipes=recipes, username=session["username"])
+    return render_template("recipes.html", recipes=recipes, username=session["username"], unit_options=UNIT_OPTIONS)
 
 @app.route("/recipes/add", methods=["POST"])
 @login_required
 def add_recipe():
     title = request.form.get("title", "").strip()
     instructions = request.form.get("instructions", "").strip()
-    ingredients_text = request.form.get("ingredients", "").strip()
 
-    if not title or not instructions or not ingredients_text:
+    # Pull every input sharing the same name attribute into a list. This is how we can get all the ingredients from the form.
+    # 3 Ingredient fields: name, quantity, unit. Each is a list of values.
+    names = request.form.getlist("ingredient_name")
+    quantities = request.form.getlist("ingredient_quantity")
+    units = request.form.getlist("ingredient_unit")
+
+    if not title or not instructions or not names:
         flash("Title, instructions, and ingredients are required fields.")
         return redirect("/recipes")
 
     parsed_ingredients = []
-    skipped_lines = []
-    for line in ingredients_text.strip().split("\n"):
-        if not line.strip():
-            continue
-        parts = line.split(",")
-        if len(parts) != 3:
-            skipped_lines.append(line)
-            continue
-
-        name = parts[0].strip()
-        quantity, error = parse_float(parts[1].strip(), "ingredient quantity")
-        unit = parts[2].strip()
-        if error or not name or not unit:
-            skipped_lines.append(line)
+    skipped = []
+    for name, quantity_raw, unit in zip(names, quantities, units):
+        name = name.strip()
+        unit = unit.strip()
+        quantity, error = parse_float(quantity_raw.strip(), "ingredient quantity")
+        if not name or not unit or error:
+            skipped.append(name or "(blank)")
             continue
         parsed_ingredients.append((name, quantity, unit))
 
-    if skipped_lines:
-        flash(f"Skipped {len(skipped_lines)} ingredient line(s) that weren't formatted as 'name, quantity, unit'.")
+    if not parsed_ingredients:
+        flash("No valid ingredients were provided. Please check your input.")
+        return redirect("/recipes")
+    if skipped:
+        flash(f"Skipped {len(skipped)} ingredient row(s) that were incomplete.")
 
     connection = get_db_connection()
     cursor = connection.cursor()
@@ -359,15 +361,13 @@ def add_recipe():
         "INSERT INTO recipes (title, instructions, user_id) VALUES (%s, %s, %s) RETURNING id",
         (title, instructions, session["user_id"])
     )
-    new_recipe_id = cursor.fetchone()[0]  # Get the ID of the newly inserted recipe
-
-    # Parse the textarea: one ingredient per line, formatted "name, quantity, unit"
+    new_recipe_id = cursor.fetchone()[0]
     for name, quantity, unit in parsed_ingredients:
         cursor.execute(
             "INSERT INTO recipe_ingredients (recipe_id, ingredient_name, quantity_needed, unit) VALUES (%s, %s, %s, %s)",
             (new_recipe_id, name, quantity, unit)
         )
-
+        
     connection.commit()
     connection.close()
     return redirect("/recipes")
@@ -393,7 +393,6 @@ def delete_recipe(recipe_id):
 def cook_preview(recipe_id):
     connection = get_db_connection()
     cursor = connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-
     cursor.execute(
         "SELECT * FROM recipes WHERE id = %s AND user_id = %s", (recipe_id, session["user_id"])
     )
