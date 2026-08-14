@@ -191,7 +191,8 @@ def show_pantry():
                            expired_items=expired_items,
                            expiring_items=expiring_items,
                            normal_items=normal_items,
-                           username=session["username"])
+                           username=session["username"],
+                           unit_options=UNIT_OPTIONS)
 
 @app.route("/add", methods=["POST"])
 @login_required
@@ -367,7 +368,7 @@ def add_recipe():
             "INSERT INTO recipe_ingredients (recipe_id, ingredient_name, quantity_needed, unit) VALUES (%s, %s, %s, %s)",
             (new_recipe_id, name, quantity, unit)
         )
-        
+
     connection.commit()
     connection.close()
     return redirect("/recipes")

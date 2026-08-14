@@ -6,7 +6,12 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="text" name="name" placeholder="Item name" required>
     <input type="number" name="quantity" placeholder="Quantity" step="any" required>
-    <input type="text" name="unit" placeholder="Unit" required>
+    <select name="unit" required>
+      <option value="">Select unit</option>
+      {% for option in unit_options %}
+        <option value="{{ option }}">{{ option }}</option>
+      {% endfor %}
+    </select>
     <input type="date" name="expiration_date">
     <button type="submit">Add item</button>
   </form>
@@ -25,7 +30,11 @@
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="text" name="name" value="{{ item.name }}" required>
               <input type="number" name="quantity" value="{{ item.quantity }}" step="any" required>
-              <input type="text" name="unit" value="{{ item.unit }}" required>
+              <select name="unit" required>
+                {% for option in unit_options %}
+                  <option value="{{ option }}" {% if item.unit == option %}selected{% endif %}>{{ option }}</option>
+                {% endfor %}
+              </select>
               <input type="date" name="expiration_date" value="{{ item.expiration_date }}">
               <button type="submit">Save</button>
             </form>
@@ -53,7 +62,11 @@
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="text" name="name" value="{{ item.name }}" required>
               <input type="number" name="quantity" value="{{ item.quantity }}" step="any" required>
-              <input type="text" name="unit" value="{{ item.unit }}" required>
+              <select name="unit" required>
+                {% for option in unit_options %}
+                  <option value="{{ option }}" {% if item.unit == option %}selected{% endif %}>{{ option }}</option>
+                {% endfor %}
+              </select>
               <input type="date" name="expiration_date" value="{{ item.expiration_date }}">
               <button type="submit">Save</button>
             </form>
@@ -80,7 +93,10 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="text" name="name" value="{{ item.name }}" required>
             <input type="number" name="quantity" value="{{ item.quantity }}" step="any" required>
-            <input type="text" name="unit" value="{{ item.unit }}" required>
+            <select name="unit" required>
+              {% for option in unit_options %}
+                <option value="{{ option }}" {% if item.unit == option %}selected{% endif %}>{{ option }}</option>
+              {% endfor %}
             <input type="date" name="expiration_date" value="{{ item.expiration_date }}">
             <button type="submit">Save</button>
           </form>
