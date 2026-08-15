@@ -8,7 +8,7 @@
     <input type="text" name="title" placeholder="Recipe title" required>
     <textarea name="instructions" placeholder="Instructions" rows="3" required></textarea>
     
-    <div id="ingredient-rows">
+    <div class="ingredient-rows">
       <div class="ingredient-row">
         <input type="text" name="ingredient_name" placeholder="Ingredient name" required>
         <input type="number" name="ingredient_quantity" placeholder="Quantity" step="any" min="0" required>
@@ -22,7 +22,7 @@
       </div>
     </div>
 
-    <template id="ingredient-row-template">
+    <template class="ingredient-row-template">
       <div class="ingredient-row">
         <input type="text" name="ingredient_name" placeholder="Ingredient name" required>
         <input type="number" name="ingredient_quantity" placeholder="Quantity" step="any" min="0" required>
@@ -36,39 +36,77 @@
       </div>
     </template>
 
-    <button type="button" id="add-ingredient-btn">+ Add ingredient</button>
+    <button type="button" class="add-ingredient-btn">+ Add ingredient</button>
     <button type="submit">Add recipe</button>
   </form>
 
   <script>
-  document.addEventListener("DOMContentLoaded", () => {
-    const rowsContainer = document.getElementById("ingredient-rows");
-    const rowTemplate = document.getElementById("ingredient-row-template");
-    const addBtn = document.getElementById("add-ingredient-btn");
-
-    addBtn.addEventListener("click", () => {
+  document.addEventListener("click", (event) => {
+    if (event.target.classList.contains("add-ingredient-btn")) {
+      const form = event.target.closest("form");
+      const rowsContainer = form.querySelector(".ingredient-rows");
+      const rowTemplate = form.querySelector(".ingredient-row-template");
       const clone = rowTemplate.content.cloneNode(true);
       rowsContainer.appendChild(clone);
-    });
+    }
 
-    rowsContainer.addEventListener("click", (event) => {
-      if (event.target.classList.contains("remove-ingredient-btn")) {
-        if (rowsContainer.children.length === 1) {
-          alert("You must have at least one ingredient.");
-          return;
-        }
-        if (confirm("Remove this ingredient?")) {
-          event.target.closest(".ingredient-row").remove();
-        }
+    if (event.target.classList.contains("remove-ingredient-btn")) {
+      const rowContainer = event.target.closest(".ingredient-rows");
+      if (rowContainer.children.length === 1) {
+        alert("You must have at least one ingredient.");
+        return;
       }
-    });
-  })
+      if (confirm("Are you sure you want to remove this ingredient?")) {
+        event.target.closest(".ingredient-row").remove();
+      }
+    }
+  });
   </script>
   
   <div class="recipe-list">
     {% for recipe in recipes %}
       <div class="recipe-card {% if recipe.missing|length == 0 %}recipe-ready{% else %}recipe-missing{% endif %}">
         <h3>{{ recipe.title }}</h3>
+        <details>
+          <summary>Edit</summary>
+          <form action="/recipes/edit/{{ recipe.id }}" method="POST" class="recipe-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="text" name="title" value="{{ recipe.title }}" required>
+            <textarea name="instructions" rows="3" required>{{ recipe.instructions }}</textarea>
+            
+            <div class="ingredient-rows">
+              {% for ingredient in recipe.ingredients %}
+                <div class="ingredient-row">
+                  <input type="text" name="ingredient_name" value="{{ ingredient.ingredient_name }}" required>
+                  <input type="number" name="ingredient_quantity" value="{{ ingredient.quantity_needed }}" step="any" min="0" required>
+                  <select name="ingredient_unit" required>
+                    {% for unit in unit_options %}
+                      <option value="{{ unit }}" {% if ingredient.unit == unit %}selected{% endif %}>{{ unit }}</option>
+                    {% endfor %}
+                  </select>
+                  <button type="button" class="remove-ingredient-btn">Remove</button>
+                </div>
+              {% endfor %}
+            </div>
+
+            <template class="ingredient-row-template">
+              <div class="ingredient-row">
+                <input type="text" name="ingredient_name" placeholder="Ingredient name" required>
+                <input type="number" name="ingredient_quantity" placeholder="Quantity" step="any" min="0" required>
+                <select name="ingredient_unit" required>
+                  <option value="" disabled selected>Select unit</option>
+                  {% for unit in unit_options %}
+                    <option value="{{ unit }}">{{ unit }}</option>
+                  {% endfor %}
+                </select>
+                <button type="button" class="remove-ingredient-btn">Remove</button>
+              </div>
+            </template>
+
+            <button type="button" class="add-ingredient-btn">+ Add ingredient</button>
+            <button type="submit">Save changes</button>
+          </form>
+        </details>
 
         {% if recipe.missing|length == 0 %}
           <span class="badge badge-ready">Ready to cook</span>

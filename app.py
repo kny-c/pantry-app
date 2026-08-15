@@ -61,7 +61,7 @@ def get_all_items(user_id):
 def get_all_recipes(user_id):
     connection = get_db_connection()
     cursor = connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cursor.execute("SELECT * FROM recipes WHERE user_id = %s", (user_id,))
+    cursor.execute("SELECT * FROM recipes WHERE user_id = %s ORDER BY id ASC", (user_id,))
     recipes = cursor.fetchall()
 
     # Convert each recipe row into a plain dict so we can attach
@@ -367,6 +367,67 @@ def add_recipe():
         cursor.execute(
             "INSERT INTO recipe_ingredients (recipe_id, ingredient_name, quantity_needed, unit) VALUES (%s, %s, %s, %s)",
             (new_recipe_id, name, quantity, unit)
+        )
+
+    connection.commit()
+    connection.close()
+    return redirect("/recipes")
+
+@app.route("/recipes/edit/<int:recipe_id>", methods=["POST"])
+@login_required
+def edit_recipe(recipe_id):
+    title = request.form.get("title", "").strip()
+    instructions = request.form.get("instructions", "").strip()
+    names = request.form.getlist("ingredient_name")
+    quantities = request.form.getlist("ingredient_quantity")
+    units = request.form.getlist("ingredient_unit")
+
+    if not title or not instructions or not names:
+        flash("Title, instructions, and ingredients are required fields.")
+        return redirect("/recipes")
+
+    parsed_ingredients = []
+    skipped = []
+    for name, quantity_raw, unit in zip(names, quantities, units):
+        name = name.strip()
+        unit = unit.strip()
+        quantity, error = parse_float(quantity_raw.strip(), "ingredient quantity")
+        if not name or not unit or error:
+            skipped.append(name or "(blank)")
+            continue
+        parsed_ingredients.append((name, quantity, unit))
+
+    if not parsed_ingredients:
+        flash("No valid ingredients were provided. Please check your input.")
+        return redirect("/recipes")
+    if skipped:
+        flash(f"Skipped {len(skipped)} ingredient row(s) that were incomplete.")
+
+    connection = get_db_connection()
+    cursor = connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+    cursor.execute(
+        "SELECT * FROM recipes WHERE id = %s AND user_id = %s", (recipe_id, session["user_id"])
+    )
+    recipe = cursor.fetchone()
+    if recipe is None:
+        connection.close()
+        return redirect("/recipes")
+
+    cursor.execute(
+        "UPDATE recipes SET title = %s, instructions = %s WHERE id = %s AND user_id = %s",
+        (title, instructions, recipe_id, session["user_id"])
+    )
+    
+    # Delete existing ingredients for this recipe
+    cursor.execute(
+        "DELETE FROM recipe_ingredients WHERE recipe_id = %s", (recipe_id,)
+    )
+    # Insert the new ingredients
+    for name, quantity, unit in parsed_ingredients:
+        cursor.execute(
+            "INSERT INTO recipe_ingredients (recipe_id, ingredient_name, quantity_needed, unit) VALUES (%s, %s, %s, %s)",
+            (recipe_id, name, quantity, unit)
         )
 
     connection.commit()
