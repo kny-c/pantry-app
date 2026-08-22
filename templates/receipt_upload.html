@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block content %}
+  <h1>Scan a Receipt</h1>
+
+  <form action="/receipt/scan" method="POST" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="file" name="receipt_image" accept="image/*" required>
+    <button type="submit">Scan receipt</button>
+  </form>
+{% endblock %}

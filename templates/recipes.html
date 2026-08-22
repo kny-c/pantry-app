@@ -9,6 +9,7 @@
     <textarea name="instructions" placeholder="Instructions" rows="3" required></textarea>
     
     <div class="ingredient-rows">
+      <!-- Individual Ingredient Rows -->
       <div class="ingredient-row">
         <input type="text" name="ingredient_name" placeholder="Ingredient name" required>
         <input type="number" name="ingredient_quantity" placeholder="Quantity" step="any" min="0" required>
@@ -52,10 +53,13 @@
 
     if (event.target.classList.contains("remove-ingredient-btn")) {
       const rowContainer = event.target.closest(".ingredient-rows");
+
+      // Cannot delete the only row in the form
       if (rowContainer.children.length === 1) {
         alert("You must have at least one ingredient.");
         return;
       }
+      // Confirm deletion
       if (confirm("Are you sure you want to remove this ingredient?")) {
         event.target.closest(".ingredient-row").remove();
       }

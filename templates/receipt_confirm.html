@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block content %}
+  <h1>Confirm Receipt Items</h1>
+  <p>Review what Textract found -- edit or remove anything wrong, then confirm to add it all to your pantry.</p>
+
+  <form action="/receipt/confirm" method="POST" class="receipt-confirm-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="item-rows">
+      {% for item in parsed_items %}
+        <div class="item-row">
+          <input type="text" name="item_name" value="{{ item.name }}" required>
+          <input type="number" name="item_quantity" value="{{ item.quantity }}" step="any" min="0" required>
+          <select name="item_unit" required>
+            {% for unit in unit_options %}
+              <option value="{{ unit }}" {% if item.unit == unit %}selected{% endif %}>{{ unit }}</option>
+            {% endfor %}
+          </select>
+          <button type="button" class="remove-item-btn">Remove</button>
+        </div>
+      {% endfor %}
+    </div>
+
+    <template class="item-row-template">
+      <div class="item-row">
+        <input type="text" name="item_name" placeholder="Item name" required>
+        <input type="number" name="item_quantity" placeholder="Quantity" step="any" min="0" required>
+        <select name="item_unit" required>
+          <option value="" disabled selected>Select unit</option>
+          {% for unit in unit_options %}
+            <option value="{{ unit }}">{{ unit }}</option>
+          {% endfor %}
+        </select>
+        <button type="button" class="remove-item-btn">Remove</button>
+      </div>
+    </template>
+
+    <button type="button" class="add-item-btn">+ Add missed item</button>
+    <button type="submit">Confirm and add to pantry</button>
+  </form>
+
+  <script>
+  document.addEventListener("click", (event) => {
+    if (event.target.classList.contains("add-item-btn")) {
+      const form = event.target.closest("form");
+      const rowsContainer = form.querySelector(".item-rows");
+      const rowTemplate = form.querySelector(".item-row-template");
+      const clone = rowTemplate.content.cloneNode(true);
+      rowsContainer.appendChild(clone);
+    }
+
+    if (event.target.classList.contains("remove-item-btn")) {
+      const rowContainer = event.target.closest(".item-rows");
+
+      if (rowContainer.children.length === 1) {
+        alert("You must have at least one item.");
+        return;
+      }
+      if (confirm("Remove this item from the list?")) {
+        event.target.closest(".item-row").remove();
+      }
+    }
+  });
+  </script>
+{% endblock %}

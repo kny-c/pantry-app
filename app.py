@@ -8,6 +8,7 @@ from datetime import date, timedelta
 from flask_wtf.csrf import CSRFProtect
 import psycopg2
 import psycopg2.extras
+import boto3
 
 load_dotenv()
 app = Flask(__name__)
@@ -38,6 +39,54 @@ def parse_float(value, field_name):
     except (ValueError, TypeError):
         return None, f"'{value}' isn't a valid number for {field_name}."
 
+def parse_quantity_unit(quantity_unit_str):
+    """
+    Textract gives quantity+unit as one string, e.g. '0.778kg'.
+    Splits it into (amount, unit). Falls back to (1, 'count') when
+    there's no quantity at all (flat-price items like 'SPECIAL').
+    """
+    if not quantity_unit_str:
+        return 1, "count"
+
+    match = re.match(r"^([\d.]+)\s*([a-zA-Z]+)$", quantity_unit_str.strip())
+    if not match:
+        return 1, "count"
+
+    amount = float(match.group(1))
+    unit = match.group(2).lower()
+    return amount, unit
+
+
+def parse_receipt_items(textract_response):
+    """
+    Takes the raw Textract AnalyzeExpense response and returns a list of
+    dicts shaped like {"name": ..., "quantity": ..., "unit": ...} --
+    the same shape your pantry add/edit forms already use.
+    """
+    parsed_items = []
+
+    for doc in textract_response.get("ExpenseDocuments", []):
+        for group in doc.get("LineItemGroups", []):
+            for line_item in group.get("LineItems", []):
+                fields = {}
+                for field in line_item.get("LineItemExpenseFields", []):
+                    field_type = field.get("Type", {}).get("Text")
+                    field_value = field.get("ValueDetection", {}).get("Text")
+                    fields[field_type] = field_value
+
+                name = fields.get("ITEM")
+                if not name:
+                    continue  # skip rows Textract couldn't identify as an item
+
+                quantity, unit = parse_quantity_unit(fields.get("QUANTITY"))
+
+                parsed_items.append({
+                    "name": name.strip(),
+                    "quantity": quantity,
+                    "unit": unit,
+                })
+
+    return parsed_items
 # ----------------------------------------------------
 def get_all_items(user_id):
     connection = get_db_connection()
@@ -316,6 +365,79 @@ def logout():
     session.clear()
     return redirect("/login")
 # ----------------------------------------------------
+@app.route("/receipt/scan", methods=["GET"])
+@login_required
+def show_receipt_upload():
+    return render_template("receipt_upload.html", username=session["username"])
+
+
+@app.route("/receipt/scan", methods=["POST"])
+@login_required
+def scan_receipt():
+    uploaded_file = request.files.get("receipt_image")
+    if not uploaded_file or uploaded_file.filename == "":
+        flash("Please choose a receipt image to upload.")
+        return redirect("/receipt/scan")
+
+    image_bytes = uploaded_file.read()
+
+    client = boto3.client(
+        "textract",
+        region_name="us-east-1",
+        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+    )
+    response = client.analyze_expense(Document={"Bytes": image_bytes})
+    parsed_items = parse_receipt_items(response)
+
+    if not parsed_items:
+        flash("Couldn't find any items on that receipt -- try a clearer photo.")
+        return redirect("/receipt/scan")
+
+    return render_template(
+        "receipt_confirm.html",
+        parsed_items=parsed_items,
+        username=session["username"],
+        unit_options=UNIT_OPTIONS
+    )
+
+
+@app.route("/receipt/confirm", methods=["POST"])
+@login_required
+def confirm_receipt():
+    names = request.form.getlist("item_name")
+    quantities = request.form.getlist("item_quantity")
+    units = request.form.getlist("item_unit")
+
+    if not names:
+        flash("No items to add.")
+        return redirect("/")
+
+    connection = get_db_connection()
+    cursor = connection.cursor()
+
+    added_count = 0
+    skipped = []
+    for name, quantity_raw, unit in zip(names, quantities, units):
+        name = name.strip()
+        unit = unit.strip()
+        quantity, error = parse_float(quantity_raw.strip(), "quantity")
+        if not name or not unit or error:
+            skipped.append(name or "(blank)")
+            continue
+        cursor.execute(
+            "INSERT INTO items (name, quantity, unit, expiration_date, user_id) VALUES (%s, %s, %s, %s, %s)",
+            (name, quantity, unit, "", session["user_id"])
+        )
+        added_count += 1
+
+    connection.commit()
+    connection.close()
+
+    if skipped:
+        flash(f"Skipped {len(skipped)} row(s) that were incomplete.")
+    flash(f"Added {added_count} item(s) to your pantry.")
+    return redirect("/")
 
 @app.route("/recipes", methods=["GET"])
 @login_required
