@@ -1,10 +1,18 @@
 {% extends "base.html" %}
 {% block content %}
-  <h1>Scan a Receipt</h1>
+  <div class="receipt-strip">
+    <p class="receipt-eyebrow">Pantry Tracker · Receipt Scan</p>
+    <h1>Scan a Receipt</h1>
+    <p class="receipt-subtext">Snap a photo and we'll pull out the items for you to review.</p>
 
-  <form action="/receipt/scan" method="POST" enctype="multipart/form-data">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <input type="file" name="receipt_image" accept="image/*" required>
-    <button type="submit">Scan receipt</button>
-  </form>
+    <form action="/receipt/scan" method="POST" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="upload-dropzone">
+        <span class="upload-dropzone-label">Choose a receipt photo</span>
+        <input type="file" name="receipt_image" accept="image/*" required>
+        <span class="upload-dropzone-hint">JPG or PNG, one receipt at a time</span>
+      </label>
+      <button type="submit" class="confirm-btn">Scan receipt</button>
+    </form>
+  </div>
 {% endblock %}
